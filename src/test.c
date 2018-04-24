@@ -404,6 +404,7 @@ void run_tests()
     test_sobel();
     test_structure();
     test_cornerness();
+    test_match();
     printf("%d tests, %d passed, %d failed\n", tests_total, tests_total-tests_fail, tests_fail);
 }
 
