@@ -370,6 +370,16 @@ void test_cornerness()
     free_image(gt);
 }
 
+void test_match(){
+    image a = load_image("data/Rainier1.png");
+    image b = load_image("data/Rainier2.png");
+    image m = find_and_draw_matches(a, b, 2, 50, 3);
+    save_image(m, "testmatch");
+    free_image(a);
+    free_image(b);
+    free_image(m);
+}
+
 void run_tests()
 {
     //test_matrix();

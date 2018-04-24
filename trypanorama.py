@@ -1,14 +1,17 @@
 from uwimg import *
-
+sys.settrace
 def draw_corners():
     im = load_image("data/Rainier1.png")
     detect_and_draw_corners(im, 2, 50, 3)
-    save_image(im, "corners")
+    print "drew corners"
+    save_image(im, "corners1")
 
 def draw_matches():
     a = load_image("data/Rainier1.png")
     b = load_image("data/Rainier2.png")
+    print "prepped"
     m = find_and_draw_matches(a, b, 2, 50, 3)
+    print "drew matches"
     save_image(m, "matches")
 
 def easy_panorama():
