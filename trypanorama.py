@@ -3,8 +3,8 @@ sys.settrace
 def draw_corners():
     im = load_image("data/Rainier1.png")
     detect_and_draw_corners(im, 2, 50, 3)
-    print "drew corners"
     save_image(im, "corners1")
+    
 
 def draw_matches():
     a = load_image("data/Rainier1.png")
@@ -72,7 +72,7 @@ def field_panorama():
 
 draw_corners()
 draw_matches()
-easy_panorama()
+#easy_panorama()
 #rainier_panorama()
 #field_panorama()
 
