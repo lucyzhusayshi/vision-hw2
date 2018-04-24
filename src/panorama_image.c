@@ -95,7 +95,6 @@ image draw_inliers(image a, image b, matrix H, match *m, int n, float thresh)
 image find_and_draw_matches(image a, image b, float sigma, float thresh, int nms)
 {
     printf("reached");
-    return b;
     int an = 0;
     int bn = 0;
     int mn = 0;
