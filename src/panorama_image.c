@@ -94,11 +94,17 @@ image draw_inliers(image a, image b, matrix H, match *m, int n, float thresh)
 // int nms: window to perform nms on. Typical: 3
 image find_and_draw_matches(image a, image b, float sigma, float thresh, int nms)
 {
+    printf("reached");
+    return b;
     int an = 0;
     int bn = 0;
     int mn = 0;
+    
     descriptor *ad = harris_corner_detector(a, sigma, thresh, nms, &an);
+    printf("harrissed1");
     descriptor *bd = harris_corner_detector(b, sigma, thresh, nms, &bn);
+    printf("harrised2");
+    printf("about to match");
     match *m = match_descriptors(ad, an, bd, bn, &mn);
 
     mark_corners(a, ad, an);
@@ -118,7 +124,13 @@ image find_and_draw_matches(image a, image b, float sigma, float thresh, int nms
 float l1_distance(float *a, float *b, int n)
 {
     // TODO: return the correct number.
-    return 0;
+    float sum = 0.0;
+
+    for (int i = 0; i < n; i++) {
+        sum = a[i] > b[i] ? sum + (a[i] - b[i]) : sum + (b[i] - a[i]);
+    }
+
+    return sum;
 }
 
 // Finds best matches between descriptors of two images.
@@ -137,12 +149,27 @@ match *match_descriptors(descriptor *a, int an, descriptor *b, int bn, int *mn)
     for(j = 0; j < an; ++j){
         // TODO: for every descriptor in a, find best match in b.
         // record ai as the index in *a and bi as the index in *b.
-        int bind = 0; // <- find the best match
+        
+        i = 0; // <- find the best match
         m[j].ai = j;
-        m[j].bi = bind; // <- should be index in b.
+        m[j].bi = i; // <- should be index in b.
         m[j].p = a[j].p;
-        m[j].q = b[bind].p;
-        m[j].distance = 0; // <- should be the smallest L1 distance!
+        m[j].q = b[i].p;
+        int n = a[j].n > b[i].n ? b[i].n : a[j].n; 
+        
+        m[j].distance = l1_distance(a[j].data, b[i].data, n); // <- should be the smallest L1 distance!
+        for(i = 1; i < bn; i++) {
+            n = a[j].n > b[i].n ? b[i].n : a[j].n; 
+            float distance = l1_distance(a[j].data, b[i].data, n);
+            printf('158 i = %d j = %d \n', i , j);
+            if (distance < m[j].distance) {
+                m[j].bi = i;
+                m[j].q = b[i].p;
+                m[j].distance = distance;
+
+                printf('164 i = %d j = %d \n', i , j);
+            }
+        }
     }
 
     int count = 0;
@@ -153,6 +180,24 @@ match *match_descriptors(descriptor *a, int an, descriptor *b, int bn, int *mn)
     // Each point should only be a part of one match.
     // Some points will not be in a match.
     // In practice just bring good matches to front of list, set *mn.
+    qsort(m, an, an * sizeof(match), match_compare);
+
+    printf('qsorted %d \n', 1);
+    j = 0;
+    for (i = 0; i < an; i++) {
+        if (!seen[m[j].bi]) {
+            seen[m[j].bi] = 1;
+            printf('185 i = %d j = %d \n', i , j);
+            count++;
+            j++;
+        } else {
+            for (int n = j; n < an - 1; n++) {
+                m[n] = m[n+1];
+                
+                printf('190 n = %d \n', n); 
+            }
+        }
+    }
     *mn = count;
     free(seen);
     return m;
