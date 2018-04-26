@@ -257,13 +257,11 @@ descriptor *harris_corner_detector(image im, float sigma, float thresh, int nms,
     image Rnms = nms_image(R, nms);
     printf("rnmsed");
 
-    
-
 
     //TODO: count number of responses over threshold
     int count = 0; // change this
     for (int i = 0; i < im.w*im.h; i++) {
-        count = Rnms.data[i] >= thresh ? count + 1 : count;
+        count = Rnms.data[i] > thresh ? count + 1 : count;
     }
 
     
@@ -272,12 +270,13 @@ descriptor *harris_corner_detector(image im, float sigma, float thresh, int nms,
     //TODO: fill in array *d with descriptors of corners, use describe_index.
     int j = 0;
     for (int i = 0; i < im.w*im.h; i++) {
-        if (Rnms.data[i] >= thresh) {
-            d[j] = describe_index(im, i);
+        if (Rnms.data[i] > thresh) {
+            d[j] = describe_index(Rnms, i);
             j++;
         }
     }
-
+    assert(count == j);
+    printf("count %d", count);
 
     free_image(S);
     free_image(R);

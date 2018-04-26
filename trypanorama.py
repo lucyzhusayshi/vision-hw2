@@ -12,7 +12,7 @@ def draw_matches():
     print "prepped"
     m = find_and_draw_matches(a, b, 2, 50, 3)
     print "drew matches"
-    save_image(m, "matches")
+    save_image(m, "matches1")
 
 def easy_panorama():
     im1 = load_image("data/Rainier1.png")

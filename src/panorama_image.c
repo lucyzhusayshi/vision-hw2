@@ -106,6 +106,7 @@ image find_and_draw_matches(image a, image b, float sigma, float thresh, int nms
     printf("harrised2");
     printf("about to match");
     match *m = match_descriptors(ad, an, bd, bn, &mn);
+    printf("matched");
     
 
     mark_corners(a, ad, an);
@@ -130,7 +131,7 @@ float l1_distance(float *a, float *b, int n)
     for (int i = 0; i < n; i++) {
         sum = a[i] > b[i] ? sum + (a[i] - b[i]) : sum + (b[i] - a[i]);
     }
-
+    printf("summed ");
     return sum;
 }
 
@@ -146,7 +147,7 @@ match *match_descriptors(descriptor *a, int an, descriptor *b, int bn, int *mn)
 
     // We will have at most an matches.
     *mn = an;
-    printf("an %d \n" , an * sizeof(match));
+    printf("an %d \n", an * sizeof(match));
     
     match *m = calloc(an, sizeof(match));
     for(j = 0; j < an; ++j){
@@ -157,24 +158,39 @@ match *match_descriptors(descriptor *a, int an, descriptor *b, int bn, int *mn)
         m[j].ai = j;
         m[j].p = a[j].p;
         
-        
         float best = l1_distance(a[j].data, b[bind].data, a[j].n);
-        
-        for(i = 1; i < bn; i++) {
+        printf("an %d bn %d j %d \n", an, bn, j);
+
+
+        for(i = 1; i < 2; i++) {
+            printf("i %d", i);
+            assert(a[j].n == b[i].n);
             float distance = l1_distance(a[j].data, b[i].data, a[j].n);
-            printf('158 i = %d j = %d \n', i , j);
+            printf("distanced");
+            
+            
+            
+            //printf('158 i = %d j = %d \n', i , j);
+            //return m;
             if (distance < best) {
                 bind = i;
                 best = distance;
 
-                printf('164 i = %d j = %d \n', i , j);
+                printf("164 i = %d j = %d \n", i , j);
             }
+            return m;
         }
+        return m;
         m[j].bi = bind; // <- should be index in b.
         m[j].q = b[bind].p;
-        m[j].distance = l1_distance(a[j].data, b[bind].data, a[j].n); // <- should be the smallest L1 distance!
-    }
+        m[j].distance = best; // <- should be the smallest L1 distance!
+        printf("j %d end", j);
+        return m;
 
+    }
+    printf("out");
+    return m;
+    
     int count = 0;
     int *seen = calloc(bn, sizeof(int));
     // TODO: we want matches to be injective (one-to-one).
@@ -218,7 +234,16 @@ point project_point(matrix H, point p)
     // TODO: project point p with homography H.
     // Remember that homogeneous coordinates are equivalent up to scalar.
     // Have to divide by.... something...
-    point q = make_point(0, 0);
+    c.data[0][0] = p.x;
+    c.data[0][1] = p.y;
+    c.data[0][2] = 1.0;
+
+    float x = H.data[0][0]*c.data[0][0] + H.data[0][1]*c.data[0][1] + H.data[0][2]*c.data[0][2];
+    float y = H.data[1][0]*c.data[0][0] + H.data[1][1]*c.data[0][1] + H.data[1][2]*c.data[0][2];
+    float w = H.data[2][0]*c.data[0][0] + H.data[2][1]*c.data[0][1] + H.data[2][2]*c.data[0][2];
+
+    point q = make_point(x/w, y/w);
+    free_matrix(c);
     return q;
 }
 
@@ -228,7 +253,10 @@ point project_point(matrix H, point p)
 float point_distance(point p, point q)
 {
     // TODO: should be a quick one.
-    return 0;
+    float dx = q.x - p.x;
+    float dy = q.y - p.y;
+
+    return dx*dx + dy*dy;
 }
 
 // Count number of inliers in a set of matches. Should also bring inliers
@@ -247,6 +275,16 @@ int model_inliers(matrix H, match *m, int n, float thresh)
     // TODO: count number of matches that are inliers
     // i.e. distance(H*p, q) < thresh
     // Also, sort the matches m so the inliers are the first 'count' elements.
+    for (i=0; i < n; i++) {
+        point p = m[i].p;
+        point q = m[i].q;
+        point proj = project_point(H, p);
+        float distance = point_distance(proj, q);
+        if (distance < thresh) {
+            m[count] = m[i];
+            count++;
+        }
+    }
     return count;
 }
 
@@ -256,6 +294,12 @@ int model_inliers(matrix H, match *m, int n, float thresh)
 void randomize_matches(match *m, int n)
 {
     // TODO: implement Fisher-Yates to shuffle the array.
+    for (int i = n - 1; i > 0; i--) {
+        int j = rand() % (i + 1);
+        match swap = m[i];
+        m[i] = m[j];
+        m[j] = swap;
+    }
 }
 
 // Computes homography between two images given matching pixels.
@@ -274,6 +318,27 @@ matrix compute_homography(match *matches, int n)
         double y  = matches[i].p.y;
         double yp = matches[i].q.y;
         // TODO: fill in the matrices M and b.
+        int r1 = i * 2;
+        int r2 = r1 + 1;
+        M.data[r1][0] = x;
+        M.data[r1][1] = y;
+        M.data[r1][2] = 1;
+        M.data[r1][3] = 0;
+        M.data[r1][4] = 0;
+        M.data[r1][5] = 0;
+        M.data[r1][6] = -1 * x * xp;
+        M.data[r1][7] = -1 * y * xp;
+        b.data[r1][0] = xp;
+
+        M.data[r2][0] = 0;
+        M.data[r2][1] = 0;
+        M.data[r2][2] = 0;
+        M.data[r2][3] = x;
+        M.data[r2][4] = y;
+        M.data[r2][5] = 1;
+        M.data[r2][6] = -1 * x * yp;
+        M.data[r2][7] = -1 * y * yp;
+        b.data[r2][0] = yp;
 
     }
     matrix a = solve_system(M, b);
@@ -285,7 +350,12 @@ matrix compute_homography(match *matches, int n)
 
     matrix H = make_matrix(3, 3);
     // TODO: fill in the homography H based on the result in a.
-
+    for (i = 0; i < 3; i++) {
+        int j = i*3;
+        H.data[i][0] = a.data[j][0];
+        H.data[i][1] = a.data[j+1][0];
+        H.data[i][2] = i == 2 ? 1 : a.data[j+2][0];
+    }
 
     free_matrix(a);
     return H;
@@ -313,6 +383,20 @@ matrix RANSAC(match *m, int n, float thresh, int k, int cutoff)
     //         if it's better than the cutoff:
     //             return it immediately
     // if we get to the end return the best homography
+    for (e = 0; e < k; e++) {
+        randomize_matches(m, n);
+        matrix H = compute_homography(m, 4);
+        int inliers = model_inliers(H, m, n, thresh);
+        if (inliers > best) {
+            free_matrix(Hb);
+            free_matrix(H);
+            best = inliers;
+            Hb = compute_homography(m, best);
+                if (inliers > cutoff) {
+                    return Hb;
+                }
+        }
+    }
     return Hb;
 }
 
@@ -358,6 +442,7 @@ image combine_images(image a, image b, matrix H)
         for(j = 0; j < a.h; ++j){
             for(i = 0; i < a.w; ++i){
                 // TODO: fill in.
+
             }
         }
     }
