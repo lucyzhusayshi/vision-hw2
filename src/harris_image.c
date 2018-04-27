@@ -247,15 +247,12 @@ descriptor *harris_corner_detector(image im, float sigma, float thresh, int nms,
 {
     // Calculate structure matrix
     image S = structure_matrix(im, sigma);
-    printf("structered");
 
     // Estimate cornerness
     image R = cornerness_response(S);
-    printf("cornered");
 
     // Run NMS on the responses
     image Rnms = nms_image(R, nms);
-    printf("rnmsed");
 
 
     //TODO: count number of responses over threshold
@@ -271,12 +268,11 @@ descriptor *harris_corner_detector(image im, float sigma, float thresh, int nms,
     int j = 0;
     for (int i = 0; i < im.w*im.h; i++) {
         if (Rnms.data[i] > thresh) {
-            d[j] = describe_index(Rnms, i);
+            d[j] = describe_index(im, i);
             j++;
         }
     }
     assert(count == j);
-    printf("count %d", count);
 
     free_image(S);
     free_image(R);

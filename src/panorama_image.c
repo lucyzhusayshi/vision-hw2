@@ -94,19 +94,14 @@ image draw_inliers(image a, image b, matrix H, match *m, int n, float thresh)
 // int nms: window to perform nms on. Typical: 3
 image find_and_draw_matches(image a, image b, float sigma, float thresh, int nms)
 {
-    printf("reached");
     int an = 0;
     int bn = 0;
     int mn = 0;
     
     descriptor *ad = harris_corner_detector(a, sigma, thresh, nms, &an);
-    printf("harrissed1");
     
     descriptor *bd = harris_corner_detector(b, sigma, thresh, nms, &bn);
-    printf("harrised2");
-    printf("about to match");
     match *m = match_descriptors(ad, an, bd, bn, &mn);
-    printf("matched");
     
 
     mark_corners(a, ad, an);
@@ -131,7 +126,7 @@ float l1_distance(float *a, float *b, int n)
     for (int i = 0; i < n; i++) {
         sum = a[i] > b[i] ? sum + (a[i] - b[i]) : sum + (b[i] - a[i]);
     }
-    printf("summed ");
+    
     return sum;
 }
 
@@ -147,7 +142,6 @@ match *match_descriptors(descriptor *a, int an, descriptor *b, int bn, int *mn)
 
     // We will have at most an matches.
     *mn = an;
-    printf("an %d \n", an * sizeof(match));
     
     match *m = calloc(an, sizeof(match));
     for(j = 0; j < an; ++j){
@@ -159,37 +153,22 @@ match *match_descriptors(descriptor *a, int an, descriptor *b, int bn, int *mn)
         m[j].p = a[j].p;
         
         float best = l1_distance(a[j].data, b[bind].data, a[j].n);
-        printf("an %d bn %d j %d \n", an, bn, j);
 
-
-        for(i = 1; i < 2; i++) {
-            printf("i %d", i);
+        for(i = 1; i < bn; i++) {
             assert(a[j].n == b[i].n);
             float distance = l1_distance(a[j].data, b[i].data, a[j].n);
-            printf("distanced");
             
-            
-            
-            //printf('158 i = %d j = %d \n', i , j);
-            //return m;
             if (distance < best) {
                 bind = i;
                 best = distance;
-
-                printf("164 i = %d j = %d \n", i , j);
             }
-            return m;
         }
-        return m;
         m[j].bi = bind; // <- should be index in b.
         m[j].q = b[bind].p;
         m[j].distance = best; // <- should be the smallest L1 distance!
-        printf("j %d end", j);
-        return m;
 
     }
     printf("out");
-    return m;
     
     int count = 0;
     int *seen = calloc(bn, sizeof(int));
@@ -202,20 +181,15 @@ match *match_descriptors(descriptor *a, int an, descriptor *b, int bn, int *mn)
 
     qsort(m, an, sizeof(match), match_compare);
 
-    printf('qsorted %d \n', 1);
-
     j = 0;
     for (i = 0; i < an; i++) {
         if (!seen[m[j].bi]) {
             seen[m[j].bi] = 1;
-            printf('185 i = %d j = %d \n', i , j);
             count++;
             j++;
         } else {
             for (int n = j; n < an - 1; n++) {
                 m[n] = m[n+1];
-                
-                printf('190 n = %d \n', n); 
             }
         }
     }
@@ -442,7 +416,9 @@ image combine_images(image a, image b, matrix H)
         for(j = 0; j < a.h; ++j){
             for(i = 0; i < a.w; ++i){
                 // TODO: fill in.
-
+                int apixel = i + j*a.w + k*a.w*a.h;
+                int cpixel = (i + dx) + (j + dy)*w + k*w*h;
+                c.data[cpixel] = a.data[apixel];
             }
         }
     }
@@ -452,6 +428,19 @@ image combine_images(image a, image b, matrix H)
     // and see if their projection from a coordinates to b coordinates falls
     // inside of the bounds of image b. If so, use bilinear interpolation to
     // estimate the value of b at that projection, then fill in image c.
+    for(k = 0; k < a.c; ++k){
+        for(j = topleft.y - dy; j < botright.y - dy; ++j){
+            for(i = topleft.x - dx; i < botright.y - dx; ++i){
+                // TODO: fill in.
+                int cpixel = i + j*w + k*w*h;
+                point pc = make_point(i, j);
+                point pb = project_point(H, pc);
+                if (pb.x >= 0 && pb.x < b.w && pb.y >= 0 && pb.y < b.h) {
+                    c.data[cpixel] = bilinear_interpolate(b, pb.x, pb.y, k);
+                }
+            }
+        }
+    }
 
     return c;
 }
