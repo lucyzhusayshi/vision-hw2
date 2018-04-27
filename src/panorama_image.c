@@ -168,7 +168,6 @@ match *match_descriptors(descriptor *a, int an, descriptor *b, int bn, int *mn)
         m[j].distance = best; // <- should be the smallest L1 distance!
 
     }
-    printf("out");
     
     int count = 0;
     int *seen = calloc(bn, sizeof(int));
@@ -215,9 +214,12 @@ point project_point(matrix H, point p)
     float x = H.data[0][0]*c.data[0][0] + H.data[0][1]*c.data[1][0] + H.data[0][2]*c.data[2][0];
     float y = H.data[1][0]*c.data[0][0] + H.data[1][1]*c.data[1][0] + H.data[1][2]*c.data[2][0];
     float w = H.data[2][0]*c.data[0][0] + H.data[2][1]*c.data[1][0] + H.data[2][2]*c.data[2][0];
+    // matrix m = matrix_mult_matrix(H,c);
 
     point q = make_point(x/w, y/w);
+    // point q = make_point(m.data[0][0]/m.data[2][0], m.data[1][0]/m.data[2][0]);
     free_matrix(c);
+    // free_matrix(m);
     return q;
 }
 
@@ -230,7 +232,7 @@ float point_distance(point p, point q)
     float dx = q.x - p.x;
     float dy = q.y - p.y;
 
-    return sqrtf(dx*dx + dy*dy);
+    return dx*dx + dy*dy;
 }
 
 // Count number of inliers in a set of matches. Should also bring inliers
@@ -259,6 +261,22 @@ int model_inliers(matrix H, match *m, int n, float thresh)
             count++;
         }
     }
+    // int j = 0;
+    // for (i = 0; i < n; i++) {
+    //     point p = m[j].p;
+    //     point q = m[j].q;
+    //     point proj = project_point(H, p);
+    //     float distance = point_distance(proj, q);
+    //     if (distance < thresh) {
+    //         // m[j] = m[i];
+    //         count++;
+    //         j++;
+    //     } else {
+    //         for (int k = j; k < n - 1; k++) {
+    //             m[k] = m[k+1];
+    //         }
+    //     }
+    // }
     return count;
 }
 
@@ -387,6 +405,7 @@ matrix RANSAC(match *m, int n, float thresh, int k, int cutoff)
 image combine_images(image a, image b, matrix H)
 {
     matrix Hinv = matrix_invert(H);
+    print_matrix(Hinv);
 
     // Project the corners of image b into image a coordinates.
     point c1 = project_point(Hinv, make_point(0,0));
@@ -409,10 +428,10 @@ image combine_images(image a, image b, matrix H)
 
     // Can disable this if you are making very big panoramas.
     // Usually this means there was an error in calculating H.
-    if(w > 7000 || h > 7000){
-        fprintf(stderr, "output too big, stopping\n");
-        return copy_image(a);
-    }
+    // if(w > 7000 || h > 7000){
+    //     fprintf(stderr, "output too big, stopping\n");
+    //     return copy_image(a);
+    // }
 
     int i,j,k;
     image c = make_image(w, h, a.c);
@@ -424,7 +443,8 @@ image combine_images(image a, image b, matrix H)
                 // TODO: fill in.
                 int apixel = i + j*a.w + k*a.w*a.h;
                 int cpixel = (i - dx) + (j - dy)*w + k*w*h;
-                c.data[cpixel] = a.data[apixel];
+                float v = get_pixel(a, i, j, k);
+                set_pixel(c, i-dx, j-dy, k, v);
             }
         }
     }
@@ -435,31 +455,40 @@ image combine_images(image a, image b, matrix H)
     // inside of the bounds of image b. If so, use bilinear interpolation to
     // estimate the value of b at that projection, then fill in image c.
     for(k = 0; k < a.c; ++k){
-        for(j = topleft.y - dy; j < botright.y - dy; ++j){
-            for(i = topleft.x - dx; i < botright.x - dx; ++i){
-        // for (j = 0; j < h; j++) {
-        //     for (i=0;i<w;i++) {
+        // for(j = 0; j < botright.y; ++j){
+        //     for(i = topleft.x; i < botright.x; ++i){
+        for (j = 0; j < h; j++) {
+            for (i=0;i<w;i++) {
                 // TODO: fill in.
                 // int cpixel = (i+dx) + (j+dy)*w + k*w*h;
                 int cpixel = (i) + (j)*w + k*w*h;
-                point pc = make_point(i-dx, j-dy);
+                // int cpixel = (i-dx) + (j-dy)*w +k*w*h;
+                 point pc = make_point(i+dx, j+dy);
+                // point pc = make_point(i, j);
+                // point pc = make_point(i-dx, j-dy);
                 point pb = project_point(H, pc);
                 if (pb.x >= 0 && pb.x < b.w && pb.y >= 0 && pb.y < b.h) {
                     if (ceilf(pb.x) == floorf(pb.x) && ceilf(pb.y) == floorf(pb.y)) {
+                        float v = get_pixel(b, (int)pb.x, (int)pb.y, k);
+                        set_pixel(c, i, j, k, v);
                         c.data[cpixel] = b.data[(int)pb.x + (int)(pb.y*b.w) + k*b.w*b.h];
                     } else if (ceilf(pb.x) == floorf(pb.x)) {
                         int top = floorf(pb.y);
                         int bottom = ceilf(pb.y);
                         int x = (int) pb.x;
-                        c.data[cpixel] = (bottom - pb.y)*get_pixel(b, x, top, k) + (pb.y - top)*get_pixel(b, x, bottom, k);
+                        float v = (bottom - pb.y)*get_pixel(b, x, top, k) + (pb.y - top)*get_pixel(b, x, bottom, k);
+
+                        set_pixel(c, i, j, k, v);
 
                     } else if (ceilf(pb.y) == floorf(pb.y)) {
                         int left = floorf(pb.x);
                         int right = ceilf(pb.x);
                         int y = (int) pb.y;
-                        c.data[cpixel] = (right - pb.x)*get_pixel(b, y, left, k) + (pb.x - left)*get_pixel(b, y, right, k);
+                        float v = (right - pb.x)*get_pixel(b, y, left, k) + (pb.x - left)*get_pixel(b, y, right, k);
+                        set_pixel(c, i, j, k, v);
                     } else {
-                        c.data[cpixel] = bilinear_interpolate(b, pb.x, pb.y, k);
+                        float v = bilinear_interpolate(b, pb.x, pb.y, k);
+                        set_pixel(c, i, j, k, v);
                     }
                     
                 }
@@ -494,8 +523,9 @@ image panorama_image(image a, image b, float sigma, float thresh, int nms, float
 
     // Run RANSAC to find the homography
     matrix H = RANSAC(m, mn, inlier_thresh, iters, cutoff);
+    print_matrix(H);
 
-    if(1){
+    if(0){
         // Mark corners and matches between images
         mark_corners(a, ad, an);
         mark_corners(b, bd, bn);
