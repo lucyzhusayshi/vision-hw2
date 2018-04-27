@@ -318,7 +318,7 @@ matrix compute_homography(match *matches, int n)
     matrix a = solve_system(M, b);
     // print_matrix(M);
     // print_matrix(b);
-    // free_matrix(M); free_matrix(b); 
+    free_matrix(M); free_matrix(b); 
 
     // If a solution can't be found, return empty matrix;
     matrix none = {0};
@@ -362,6 +362,10 @@ matrix RANSAC(match *m, int n, float thresh, int k, int cutoff)
     for (e = 0; e < k; e++) {
         randomize_matches(m, n);
         matrix H = compute_homography(m, 4);
+        if (H.rows != 3 || H.cols != 3) {
+            free_matrix(H);
+            continue;
+        }
         int inliers = model_inliers(H, m, n, thresh);
         if (inliers > best) {
             free_matrix(Hb);
