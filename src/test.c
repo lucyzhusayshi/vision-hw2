@@ -394,6 +394,13 @@ void test_match(){
     free_image(m);
 }
 
+void test_panorama() {
+    image im1 = load_image("data/Rainier1.png");
+    image im2 = load_image("data/Rainier2.png");
+    image pan = panorama_image(im1, im2, 2, 50, 3, 2, 10000, 30);
+    save_image(pan, "easy_panorama");
+}
+
 void run_tests()
 {
     //test_matrix();
@@ -419,6 +426,7 @@ void run_tests()
     test_structure();
     test_cornerness();
     test_match();
+    test_panorama();
     printf("%d tests, %d passed, %d failed\n", tests_total, tests_total-tests_fail, tests_fail);
 }
 
