@@ -9,9 +9,7 @@ def draw_corners():
 def draw_matches():
     a = load_image("data/Rainier1.png")
     b = load_image("data/Rainier2.png")
-    print "prepped"
     m = find_and_draw_matches(a, b, 2, 50, 3)
-    print "drew matches"
     save_image(m, "matches1")
 
 def easy_panorama():

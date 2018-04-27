@@ -209,12 +209,12 @@ point project_point(matrix H, point p)
     // Remember that homogeneous coordinates are equivalent up to scalar.
     // Have to divide by.... something...
     c.data[0][0] = p.x;
-    c.data[0][1] = p.y;
-    c.data[0][2] = 1.0;
+    c.data[1][0] = p.y;
+    c.data[2][0] = 1.0;
 
-    float x = H.data[0][0]*c.data[0][0] + H.data[0][1]*c.data[0][1] + H.data[0][2]*c.data[0][2];
-    float y = H.data[1][0]*c.data[0][0] + H.data[1][1]*c.data[0][1] + H.data[1][2]*c.data[0][2];
-    float w = H.data[2][0]*c.data[0][0] + H.data[2][1]*c.data[0][1] + H.data[2][2]*c.data[0][2];
+    float x = H.data[0][0]*c.data[0][0] + H.data[0][1]*c.data[1][0] + H.data[0][2]*c.data[2][0];
+    float y = H.data[1][0]*c.data[0][0] + H.data[1][1]*c.data[1][0] + H.data[1][2]*c.data[2][0];
+    float w = H.data[2][0]*c.data[0][0] + H.data[2][1]*c.data[1][0] + H.data[2][2]*c.data[2][0];
 
     point q = make_point(x/w, y/w);
     free_matrix(c);
@@ -230,7 +230,7 @@ float point_distance(point p, point q)
     float dx = q.x - p.x;
     float dy = q.y - p.y;
 
-    return dx*dx + dy*dy;
+    return sqrtf(dx*dx + dy*dy);
 }
 
 // Count number of inliers in a set of matches. Should also bring inliers
@@ -316,7 +316,9 @@ matrix compute_homography(match *matches, int n)
 
     }
     matrix a = solve_system(M, b);
-    free_matrix(M); free_matrix(b); 
+    // print_matrix(M);
+    // print_matrix(b);
+    // free_matrix(M); free_matrix(b); 
 
     // If a solution can't be found, return empty matrix;
     matrix none = {0};
@@ -417,7 +419,7 @@ image combine_images(image a, image b, matrix H)
             for(i = 0; i < a.w; ++i){
                 // TODO: fill in.
                 int apixel = i + j*a.w + k*a.w*a.h;
-                int cpixel = (i + dx) + (j + dy)*w + k*w*h;
+                int cpixel = (i - dx) + (j - dy)*w + k*w*h;
                 c.data[cpixel] = a.data[apixel];
             }
         }
@@ -430,13 +432,32 @@ image combine_images(image a, image b, matrix H)
     // estimate the value of b at that projection, then fill in image c.
     for(k = 0; k < a.c; ++k){
         for(j = topleft.y - dy; j < botright.y - dy; ++j){
-            for(i = topleft.x - dx; i < botright.y - dx; ++i){
+            for(i = topleft.x - dx; i < botright.x - dx; ++i){
+        // for (j = 0; j < h; j++) {
+        //     for (i=0;i<w;i++) {
                 // TODO: fill in.
-                int cpixel = i + j*w + k*w*h;
-                point pc = make_point(i, j);
+                // int cpixel = (i+dx) + (j+dy)*w + k*w*h;
+                int cpixel = (i) + (j)*w + k*w*h;
+                point pc = make_point(i-dx, j-dy);
                 point pb = project_point(H, pc);
                 if (pb.x >= 0 && pb.x < b.w && pb.y >= 0 && pb.y < b.h) {
-                    c.data[cpixel] = bilinear_interpolate(b, pb.x, pb.y, k);
+                    if (ceilf(pb.x) == floorf(pb.x) && ceilf(pb.y) == floorf(pb.y)) {
+                        c.data[cpixel] = b.data[(int)pb.x + (int)(pb.y*b.w) + k*b.w*b.h];
+                    } else if (ceilf(pb.x) == floorf(pb.x)) {
+                        int top = floorf(pb.y);
+                        int bottom = ceilf(pb.y);
+                        int x = (int) pb.x;
+                        c.data[cpixel] = (bottom - pb.y)*get_pixel(b, x, top, k) + (pb.y - top)*get_pixel(b, x, bottom, k);
+
+                    } else if (ceilf(pb.y) == floorf(pb.y)) {
+                        int left = floorf(pb.x);
+                        int right = ceilf(pb.x);
+                        int y = (int) pb.y;
+                        c.data[cpixel] = (right - pb.x)*get_pixel(b, y, left, k) + (pb.x - left)*get_pixel(b, y, right, k);
+                    } else {
+                        c.data[cpixel] = bilinear_interpolate(b, pb.x, pb.y, k);
+                    }
+                    
                 }
             }
         }
