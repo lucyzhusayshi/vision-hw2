@@ -27,15 +27,21 @@ def rainier_panorama():
     im6 = load_image("data/Rainier6.png")
     pan = panorama_image(im1, im2, thresh=5)
     save_image(pan, "rainier_panorama_1")
+    # m = find_and_draw_matches(pan, im5,2,5,3)
+    # save_image(m, "match_rainier_2")
     pan2 = panorama_image(pan, im5, thresh=5)
     save_image(pan2, "rainier_panorama_2")
+    # m = find_and_draw_matches(pan2, im6,2,5,3)
+    # save_image(m, "match_rainier_3")
     pan3 = panorama_image(pan2, im6, thresh=5)
     save_image(pan3, "rainier_panorama_3")
     pan4 = panorama_image(pan3, im3, thresh=5)
     save_image(pan4, "rainier_panorama_4")
     pan5 = panorama_image(pan4, im4, thresh=5)
     save_image(pan5, "rainier_panorama_5")
-
+    # im1 = load_image("rainier_panorama_2.jpg")
+    # pan = panorama_image(im1, im6, thresh=5)
+    # save_image(pan, "inliers_pan3")
 
 def field_panorama():
     im1 = load_image("data/field1.jpg")

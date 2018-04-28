@@ -210,6 +210,9 @@ matrix matrix_invert(matrix m)
             }
         }
         if(index == -1){
+            // print_matrix(m);
+            // print_matrix(c);
+            printf("k = %d \n", k);
             fprintf(stderr, "Can't do it, sorry!\n");
             free_matrix(c);
             return none;

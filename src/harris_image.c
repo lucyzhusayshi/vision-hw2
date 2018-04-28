@@ -114,28 +114,29 @@ image structure_matrix(image im, float sigma)
 {
     image S = make_image(im.w, im.h, 3);
     // TODO: calculate structure matrix for im.
-    printf("made image S");
     image gx = make_gx_filter();
-    printf("made gx");
     image gy = make_gy_filter();
-    printf("made gy");
     image Ix = convolve_image(im, gx, 0);
-    printf("made Ix");
     image Iy = convolve_image(im, gy, 0);
-    printf("made Iy");
 
     for (int x = 0; x < im.w; x++) {
         for (int y = 0; y < im.h; y++) {
-            int pixel = x + y*im.w;
-            S.data[pixel] = Ix.data[pixel] * Ix.data[pixel];
-            S.data[pixel + im.w*im.h] = Iy.data[pixel] * Iy.data[pixel];
-            S.data[pixel + 2*im.w*im.h] = Ix.data[pixel] * Iy.data[pixel];
+            // int pixel = x + y*im.w;
+            float ix = get_pixel(Ix, x, y, 0);
+            float iy = get_pixel(Iy, x, y, 0);
+            
+            set_pixel(S, x, y, 0, ix*ix);
+            set_pixel(S, x, y, 1, iy*iy);
+            set_pixel(S, x, y, 2, ix*iy);
+
+            // S.data[pixel] = Ix.data[pixel] * Ix.data[pixel];
+            // S.data[pixel + im.w*im.h] = Iy.data[pixel] * Iy.data[pixel];
+            // S.data[pixel + 2*im.w*im.h] = Ix.data[pixel] * Iy.data[pixel];
         }
     }
 
-    printf("about to smooth");
     image smoothed = smooth_image(S, sigma);
-    printf("smoothed");
+
     free_image(S);
     free_image(gx);
     free_image(gy);
@@ -161,15 +162,16 @@ image cornerness_response(image S)
 
     for (int x = 0; x < S.w; x++) {
         for (int y = 0; y < S.h; y++) {
-            int pixel = x + y*S.w;
-            float IxIx = S.data[pixel];
-            float IyIy = S.data[pixel + S.w*S.h];
-            float IxIy = S.data[pixel + 2*S.w*S.h];
+            // int pixel = x + y*S.w;
+            float IxIx = get_pixel(S, x, y, 0);
+            float IyIy = get_pixel(S, x, y, 1);
+            float IxIy = get_pixel(S, x, y, 2);
 
-            float det = IxIx*IyIy - IxIy*IxIy;
+            float det = IxIx * IyIy - IxIy * IxIy;
             float trace = IxIx + IyIy;
 
-            R.data[pixel] = det - alpha*trace*trace;
+            set_pixel(R, x, y, 0, det - alpha*trace*trace);
+            // R.data[pixel] = det - alpha*trace*trace;
         }
     }
 
@@ -190,46 +192,20 @@ image nms_image(image im, int w)
     //             set response to be very low (I use -999999 [why not 0??])
     for (int x = 0; x < im.w; x++) {
         for (int y = 0; y < im.h; y++) {
-            int pixel = x + y*im.w;
+            float q = get_pixel(im, x, y, 0);
             for (int n = 0; n <= w; n++) {
                 for (int m = 0; m <= w; m++) {
-                    int x_add = x + n;
-                    int x_sub = x - n;
-                    int y_add = y + m;
-                    int y_sub = y - m;
+                    float n1 = get_pixel(im, x+n, y+m, 0);
+                    float n2 = get_pixel(im, x+n, y-m, 0);
+                    float n3 = get_pixel(im, x-n, y+m, 0);
+                    float n4 = get_pixel(im, x-n, y-m, 0);
 
-                    if (x_add >= 0 && x_add < im.w && y_add >= 0 && y_add < im.h) { 
-                        int neighbor = x_add + y_add*im.w;
-                        if (im.data[neighbor] > im.data[pixel]) {
-                            r.data[pixel] = -999999;
-                            continue;
-                        }
-                    }
-
-                    if (x_add >= 0 && x_add < im.w && y_sub >= 0 && y_sub < im.h) { 
-                        int neighbor = x_add + y_sub*im.w;
-                        if (im.data[neighbor] > im.data[pixel]) {
-                            r.data[pixel] = -999999;
-                            continue;
-                        }
-                    }
-
-                    if (x_sub >= 0 && x_sub < im.w && y_add >= 0 && y_add < im.h) { 
-                        int neighbor = x_sub + y_add*im.w;
-                        if (im.data[neighbor] > im.data[pixel]) {
-                            r.data[pixel] = -999999;
-                            continue;
-                        }
-                    }
-
-                    if (x_sub >= 0 && x_sub < im.w && y_sub >= 0 && y_sub < im.h) { 
-                        int neighbor = x_sub + y_sub*im.w;
-                        if (im.data[neighbor] > im.data[pixel]) {
-                            r.data[pixel] = -999999;
-                            continue;
-                        }
+                    if (n1 > q || n2 > q || n3 > q || n4 > q) {
+                        set_pixel(r, x, y, 0, -999999);
+                        break;
                     }
                 }
+                if (get_pixel(r, x, y, 0) != get_pixel(im, x, y, 0)) break;
             }
         }
     }
@@ -257,7 +233,8 @@ descriptor *harris_corner_detector(image im, float sigma, float thresh, int nms,
 
     //TODO: count number of responses over threshold
     int count = 0; // change this
-    for (int i = 0; i < im.w*im.h; i++) {
+    int i;
+    for (i = 0; i < im.w*im.h; i++) {
         count = Rnms.data[i] > thresh ? count + 1 : count;
     }
 
@@ -266,7 +243,7 @@ descriptor *harris_corner_detector(image im, float sigma, float thresh, int nms,
     descriptor *d = calloc(count, sizeof(descriptor));
     //TODO: fill in array *d with descriptors of corners, use describe_index.
     int j = 0;
-    for (int i = 0; i < im.w*im.h; i++) {
+    for (i = 0; i < im.w*im.h; i++) {
         if (Rnms.data[i] > thresh) {
             d[j] = describe_index(im, i);
             j++;

@@ -3,72 +3,62 @@
 
 float nn_interpolate(image im, float x, float y, int c)
 {
-    // TODO Fill in
-
-    // Nearest neighbor interpolation
-    // Round to closest int, not type cast because C truncates towards 0
-    int x_ = roundf(x);
-    int y_ = roundf(y);
-    return get_pixel(im, x_, y_, c);
-}
-
-image nn_resize(image im, int w, int h)
-{
-    // TODO Fill in 
-    // newcoord = a*oldcoord + b
-    image resized = make_image(w, h, im.c);
-    float x_scalar = ((float)im.w)/ w;
-    float y_scalar = ((float)im.h)/ h;
-    float x_b = 0.5*x_scalar - 0.5;
-    float y_b = 0.5*y_scalar - 0.5;
-
-    for (int y = 0; y < h; y++) {
-        for (int x = 0; x < w; x++) {
-            int pixel = x + y*w;
-            for (int z = 0; z < im.c; z++) {
-                float x_ = x_scalar*x + x_b;
-                float y_ = y_scalar*y + y_b;
-                resized.data[pixel + z*w*h] = nn_interpolate(im, x_, y_, z);
-            }
-        }
-    }
-    return resized;
+    int lx = (int) round(x);
+    int ly = (int) round(y);
+    float v00 = get_pixel(im, lx, ly, c);
+    return v00;
 }
 
 float bilinear_interpolate(image im, float x, float y, int c)
 {
-    // TODO
-    int left = floorf(x);
-    int right = ceilf(x);
-    int top = floorf(y);
-    int bottom = ceilf(y);
-
-    float q1 = (bottom - y)*get_pixel(im, left, top, c) + (y - top)*get_pixel(im, left, bottom, c);
-    float q2 = (bottom - y)*get_pixel(im, right, top, c) + (y - top)*get_pixel(im, right, bottom, c);
-
-    float q = (x - left)*q2 + (right - x)*q1;
-    return q;
+    int lx = (int) floor(x);
+    int ly = (int) floor(y);
+    float dx = x - lx;
+    float dy = y - ly;
+    float v00 = get_pixel(im, lx, ly, c);
+    float v10 = get_pixel(im, lx+1, ly, c);
+    float v01 = get_pixel(im, lx, ly+1, c);
+    float v11 = get_pixel(im, lx+1, ly+1, c);
+    float v =   v00*(1-dx)*(1-dy) + v10*dx*(1-dy) + 
+                v01*(1-dx)*dy + v11*dx*dy;
+    return v;
 }
 
 image bilinear_resize(image im, int w, int h)
 {
-    // TODO
-    image resized = make_image(w, h, im.c);
-    float x_scalar = ((float)im.w)/ w;
-    float y_scalar = ((float)im.h)/ h;
-    float x_b = 0.5*x_scalar - 0.5;
-    float y_b = 0.5*y_scalar - 0.5;
-    
-    for (int y = 0; y < h; y++) {
-        for (int x = 0; x < w; x++) {
-            int pixel = x + y*w;
-            for (int z = 0; z < im.c; z++) {
-                float x_ = x_scalar*x + x_b;
-                float y_ = y_scalar*y + y_b;
-                resized.data[pixel + z*w*h] = bilinear_interpolate(im, x_, y_, z);
+    image r = make_image(w, h, im.c);   
+    float xscale = (float)im.w/w;
+    float yscale = (float)im.h/h;
+    int i, j, k;
+    for(k = 0; k < im.c; ++k){
+        for(j = 0; j < h; ++j){
+            for(i = 0; i < w; ++i){
+                float y = (j+.5)*yscale - .5;
+                float x = (i+.5)*xscale - .5;
+                float val = bilinear_interpolate(im, x, y, k);
+                set_pixel(r, i, j, k, val);
             }
         }
     }
-    return resized;
+    return r;
+}
+
+image nn_resize(image im, int w, int h)
+{
+    image r = make_image(w, h, im.c);   
+    float xscale = (float)im.w/w;
+    float yscale = (float)im.h/h;
+    int i, j, k;
+    for(k = 0; k < im.c; ++k){
+        for(j = 0; j < h; ++j){
+            for(i = 0; i < w; ++i){
+                float y = (j+.5)*yscale - .5;
+                float x = (i+.5)*xscale - .5;
+                float val = nn_interpolate(im, x, y, k);
+                set_pixel(r, i, j, k, val);
+            }
+        }
+    }
+    return r;
 }
 

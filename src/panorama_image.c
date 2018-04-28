@@ -124,7 +124,7 @@ float l1_distance(float *a, float *b, int n)
     float sum = 0.0;
 
     for (int i = 0; i < n; i++) {
-        sum = a[i] > b[i] ? sum + (a[i] - b[i]) : sum + (b[i] - a[i]);
+        sum += fabs(a[i]-b[i]);
     }
     
     return sum;
@@ -180,20 +180,16 @@ match *match_descriptors(descriptor *a, int an, descriptor *b, int bn, int *mn)
 
     qsort(m, an, sizeof(match), match_compare);
 
-    j = 0;
     for (i = 0; i < an; i++) {
-        if (!seen[m[j].bi]) {
-            seen[m[j].bi] = 1;
+        if (!seen[m[i].bi]) {
+            seen[m[i].bi] = 1;
+            m[count] = m[i];
             count++;
-            j++;
-        } else {
-            for (int n = j; n < an - 1; n++) {
-                m[n] = m[n+1];
-            }
         }
     }
     *mn = count;
     free(seen);
+    printf("matches = %d \n", count);
     return m;
 }
 
@@ -211,15 +207,15 @@ point project_point(matrix H, point p)
     c.data[1][0] = p.y;
     c.data[2][0] = 1.0;
 
-    float x = H.data[0][0]*c.data[0][0] + H.data[0][1]*c.data[1][0] + H.data[0][2]*c.data[2][0];
-    float y = H.data[1][0]*c.data[0][0] + H.data[1][1]*c.data[1][0] + H.data[1][2]*c.data[2][0];
-    float w = H.data[2][0]*c.data[0][0] + H.data[2][1]*c.data[1][0] + H.data[2][2]*c.data[2][0];
-    // matrix m = matrix_mult_matrix(H,c);
+    // float x = H.data[0][0]*c.data[0][0] + H.data[0][1]*c.data[1][0] + H.data[0][2]*c.data[2][0];
+    // float y = H.data[1][0]*c.data[0][0] + H.data[1][1]*c.data[1][0] + H.data[1][2]*c.data[2][0];
+    // float w = H.data[2][0]*c.data[0][0] + H.data[2][1]*c.data[1][0] + H.data[2][2]*c.data[2][0];
+    matrix m = matrix_mult_matrix(H,c);
 
-    point q = make_point(x/w, y/w);
-    // point q = make_point(m.data[0][0]/m.data[2][0], m.data[1][0]/m.data[2][0]);
+    // point q = make_point(x/w, y/w);
+    point q = make_point(m.data[0][0]/m.data[2][0], m.data[1][0]/m.data[2][0]);
     free_matrix(c);
-    // free_matrix(m);
+    free_matrix(m);
     return q;
 }
 
@@ -232,7 +228,7 @@ float point_distance(point p, point q)
     float dx = q.x - p.x;
     float dy = q.y - p.y;
 
-    return dx*dx + dy*dy;
+    return sqrtf(dx*dx + dy*dy);
 }
 
 // Count number of inliers in a set of matches. Should also bring inliers
@@ -251,32 +247,22 @@ int model_inliers(matrix H, match *m, int n, float thresh)
     // TODO: count number of matches that are inliers
     // i.e. distance(H*p, q) < thresh
     // Also, sort the matches m so the inliers are the first 'count' elements.
-    for (i=0; i < n; i++) {
-        point p = m[i].p;
-        point q = m[i].q;
+    for (i = 0; i < n; i++) {
+        point p = m[count].p;
+        point q = m[count].q;
+        
         point proj = project_point(H, p);
         float distance = point_distance(proj, q);
         if (distance < thresh) {
-            m[count] = m[i];
             count++;
+        } else {
+            match temp = m[count];
+            for (int j = count; j < n - 1; j++) {
+                m[j] = m[j+1];
+            }
+            m[n-1] = temp;
         }
     }
-    // int j = 0;
-    // for (i = 0; i < n; i++) {
-    //     point p = m[j].p;
-    //     point q = m[j].q;
-    //     point proj = project_point(H, p);
-    //     float distance = point_distance(proj, q);
-    //     if (distance < thresh) {
-    //         // m[j] = m[i];
-    //         count++;
-    //         j++;
-    //     } else {
-    //         for (int k = j; k < n - 1; k++) {
-    //             m[k] = m[k+1];
-    //         }
-    //     }
-    // }
     return count;
 }
 
@@ -286,8 +272,10 @@ int model_inliers(matrix H, match *m, int n, float thresh)
 void randomize_matches(match *m, int n)
 {
     // TODO: implement Fisher-Yates to shuffle the array.
-    for (int i = n - 1; i > 0; i--) {
-        int j = rand() % (i + 1);
+    int i;
+    int j;
+    for (i = n - 1; i > 0; i--) {
+        j = rand() % (i + 1);
         match swap = m[i];
         m[i] = m[j];
         m[j] = swap;
@@ -318,8 +306,8 @@ matrix compute_homography(match *matches, int n)
         M.data[r1][3] = 0;
         M.data[r1][4] = 0;
         M.data[r1][5] = 0;
-        M.data[r1][6] = -1 * x * xp;
-        M.data[r1][7] = -1 * y * xp;
+        M.data[r1][6] = -x * xp;
+        M.data[r1][7] = -y * xp;
         b.data[r1][0] = xp;
 
         M.data[r2][0] = 0;
@@ -328,14 +316,12 @@ matrix compute_homography(match *matches, int n)
         M.data[r2][3] = x;
         M.data[r2][4] = y;
         M.data[r2][5] = 1;
-        M.data[r2][6] = -1 * x * yp;
-        M.data[r2][7] = -1 * y * yp;
+        M.data[r2][6] = -x * yp;
+        M.data[r2][7] = -y * yp;
         b.data[r2][0] = yp;
 
     }
     matrix a = solve_system(M, b);
-    // print_matrix(M);
-    // print_matrix(b);
     free_matrix(M); free_matrix(b); 
 
     // If a solution can't be found, return empty matrix;
@@ -344,12 +330,21 @@ matrix compute_homography(match *matches, int n)
 
     matrix H = make_matrix(3, 3);
     // TODO: fill in the homography H based on the result in a.
-    for (i = 0; i < 3; i++) {
-        int j = i*3;
-        H.data[i][0] = a.data[j][0];
-        H.data[i][1] = a.data[j+1][0];
-        H.data[i][2] = i == 2 ? 1 : a.data[j+2][0];
-    }
+    // for (i = 0; i < 3; i++) {
+    //     int j = i*3;
+    //     H.data[i][0] = a.data[j][0];
+    //     H.data[i][1] = a.data[j+1][0];
+    //     H.data[i][2] = i == 2 ? 1 : a.data[j+2][0];
+    // }
+    H.data[0][0] = a.data[0][0];
+    H.data[0][1] = a.data[1][0];
+    H.data[0][2] = a.data[2][0];
+    H.data[1][0] = a.data[3][0];
+    H.data[1][1] = a.data[4][0];
+    H.data[1][2] = a.data[5][0];
+    H.data[2][0] = a.data[6][0];
+    H.data[2][1] = a.data[7][0];
+    H.data[2][2] = 1.0;
 
     free_matrix(a);
     return H;
@@ -364,7 +359,7 @@ matrix compute_homography(match *matches, int n)
 // returns: matrix representing most common homography between matches.
 matrix RANSAC(match *m, int n, float thresh, int k, int cutoff)
 {
-    int e;
+    int e = 0;
     int best = 0;
     matrix Hb = make_translation_homography(256, 0);
     // TODO: fill in RANSAC algorithm.
@@ -377,24 +372,43 @@ matrix RANSAC(match *m, int n, float thresh, int k, int cutoff)
     //         if it's better than the cutoff:
     //             return it immediately
     // if we get to the end return the best homography
-    for (e = 0; e < k; e++) {
-        randomize_matches(m, n);
-        matrix H = compute_homography(m, 4);
-        if (H.rows != 3 || H.cols != 3) {
-            free_matrix(H);
+    for (int i = 0; i < k; i++) {
+        randomize_matches(m, n);            //     shuffle the matches
+        matrix H = compute_homography(m,4); //     compute a homography with a few matches
+        if (!H.data) {
             continue;
         }
+        // matrix Hinv = matrix_invert(H);
+        // if (!Hinv.data) {
+        //     free_matrix(H);
+        //     continue;
+        // }
         int inliers = model_inliers(H, m, n, thresh);
         if (inliers > best) {
-            free_matrix(Hb);
             free_matrix(H);
-            best = inliers;
-            Hb = compute_homography(m, best);
-                if (inliers > cutoff) {
-                    return Hb;
-                }
+            
+            matrix Hn = compute_homography(m, inliers);
+            if (!Hn.data) {
+                continue;
+            }
+            int inliersn = model_inliers(Hn, m, n, thresh);
+            
+            if (inliersn > best) {
+                free_matrix(Hb);
+                Hb = Hn;
+                best = inliersn;
+                e = inliers;
+            }
+            
+            
+            if (inliersn > cutoff) {
+                printf("inliers = %d \n", best);
+                return Hb;
+            }
+                
         }
     }
+    printf("inliers = %d \n", best);
     return Hb;
 }
 
@@ -423,7 +437,7 @@ image combine_images(image a, image b, matrix H)
     // Find how big our new image should be and the offsets from image a.
     int dx = MIN(0, topleft.x);
     int dy = MIN(0, topleft.y);
-    int w = MAX(a.w, botright.x) - dx;
+    int w = MAX(a.w, botright.x) - dx; // c coordinates
     int h = MAX(a.h, botright.y) - dy;
 
     // Can disable this if you are making very big panoramas.
@@ -441,10 +455,10 @@ image combine_images(image a, image b, matrix H)
         for(j = 0; j < a.h; ++j){
             for(i = 0; i < a.w; ++i){
                 // TODO: fill in.
-                int apixel = i + j*a.w + k*a.w*a.h;
-                int cpixel = (i - dx) + (j - dy)*w + k*w*h;
+                // int apixel = i + j*a.w + k*a.w*a.h;
+                // int cpixel = (i - dx) + (j - dy)*w + k*w*h;
                 float v = get_pixel(a, i, j, k);
-                set_pixel(c, i-dx, j-dy, k, v);
+                set_pixel(c, i - dx, j - dy, k, v);
             }
         }
     }
@@ -454,48 +468,53 @@ image combine_images(image a, image b, matrix H)
     // and see if their projection from a coordinates to b coordinates falls
     // inside of the bounds of image b. If so, use bilinear interpolation to
     // estimate the value of b at that projection, then fill in image c.
-    for(k = 0; k < a.c; ++k){
-        // for(j = 0; j < botright.y; ++j){
-        //     for(i = topleft.x; i < botright.x; ++i){
-        for (j = 0; j < h; j++) {
-            for (i=0;i<w;i++) {
-                // TODO: fill in.
-                // int cpixel = (i+dx) + (j+dy)*w + k*w*h;
-                int cpixel = (i) + (j)*w + k*w*h;
-                // int cpixel = (i-dx) + (j-dy)*w +k*w*h;
-                 point pc = make_point(i+dx, j+dy);
-                // point pc = make_point(i, j);
-                // point pc = make_point(i-dx, j-dy);
-                point pb = project_point(H, pc);
-                if (pb.x >= 0 && pb.x < b.w && pb.y >= 0 && pb.y < b.h) {
-                    if (ceilf(pb.x) == floorf(pb.x) && ceilf(pb.y) == floorf(pb.y)) {
-                        float v = get_pixel(b, (int)pb.x, (int)pb.y, k);
-                        set_pixel(c, i, j, k, v);
-                        c.data[cpixel] = b.data[(int)pb.x + (int)(pb.y*b.w) + k*b.w*b.h];
-                    } else if (ceilf(pb.x) == floorf(pb.x)) {
-                        int top = floorf(pb.y);
-                        int bottom = ceilf(pb.y);
-                        int x = (int) pb.x;
-                        float v = (bottom - pb.y)*get_pixel(b, x, top, k) + (pb.y - top)*get_pixel(b, x, bottom, k);
-
-                        set_pixel(c, i, j, k, v);
-
-                    } else if (ceilf(pb.y) == floorf(pb.y)) {
-                        int left = floorf(pb.x);
-                        int right = ceilf(pb.x);
-                        int y = (int) pb.y;
-                        float v = (right - pb.x)*get_pixel(b, y, left, k) + (pb.x - left)*get_pixel(b, y, right, k);
-                        set_pixel(c, i, j, k, v);
-                    } else {
-                        float v = bilinear_interpolate(b, pb.x, pb.y, k);
-                        set_pixel(c, i, j, k, v);
-                    }
-                    
+    for (j = topleft.y-dy; j < botright.y-dy; j++) {
+        for (i = topleft.x-dx; i < botright.x-dx; i++) {
+            point pa = make_point(i+dx,j+dy);
+            point pc = make_point(i, j);
+            point pb = project_point(H, pa);
+            if (pb.x >= 0 && pb.x < b.w && pb.y >= 0 && pb.y < b.h) {
+                for(k = 0; k < a.c; ++k){
+                    float v = bilinear_interpolate(b, pb.x, pb.y, k);
+                    set_pixel(c, pc.x, pc.y, k, v);
                 }
             }
         }
     }
 
+    
+    // for (j = 0; j < h; j++) {
+    //     for (i = 0; i < w; i++) {
+    //         for(k = 0; k < a.c; ++k) {
+    //             point pa = make_point(i+dx, j+dy);
+    //             point pb = project_point(H, pa);
+    //             if (pb.x >= 0 && pb.x < b.w && pb.y >= 0 && pb.y < b.h) {
+    //                 // if (ceilf(pb.x) == floorf(pb.x) && ceilf(pb.y) == floorf(pb.y)) {
+    //                 //     float v = get_pixel(b, (int)pb.x, (int)pb.y, k);
+    //                 //     set_pixel(c, i, j, k, v);
+    //                 // } else if (ceilf(pb.x) == floorf(pb.x)) {
+    //                 //     int top = floorf(pb.y);
+    //                 //     int bottom = ceilf(pb.y);
+    //                 //     int x = (int) pb.x;
+    //                 //     float v = (bottom - pb.y)*get_pixel(b, x, top, k) + (pb.y - top)*get_pixel(b, x, bottom, k);
+
+    //                 //     set_pixel(c, i, j, k, v);
+
+    //                 // } else if (ceilf(pb.y) == floorf(pb.y)) {
+    //                 //     int left = floorf(pb.x);
+    //                 //     int right = ceilf(pb.x);
+    //                 //     int y = (int) pb.y;
+    //                 //     float v = (right - pb.x)*get_pixel(b, y, left, k) + (pb.x - left)*get_pixel(b, y, right, k);
+    //                 //     set_pixel(c, i, j, k, v);
+    //                 // } else {
+    //                     float v = bilinear_interpolate(b, pb.x, pb.y, k);
+    //                     set_pixel(c, i, j, k, v);
+    //                 // }
+                    
+    //             }
+    //         }
+    //     }
+    // }
     return c;
 }
 
